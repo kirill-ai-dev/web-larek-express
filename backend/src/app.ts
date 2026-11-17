@@ -8,21 +8,23 @@ import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import path from 'path';
-import { DB_ADDRESS, PORT } from './config';
+import { DB_ADDRESS, ORIGIN_ALLOW, PORT } from './config';
 import { NotFoundError } from './errors';
 import errorHandler from './middlewares/error-handler';
 import { errorLogger, requestLogger } from './middlewares/logger';
 import productRouter from './routes/products';
 import orderRouter from './routes/orders';
+import authRouter from './routes/auth';
 
 const app = express();
 
 app.use(requestLogger);
-app.use(cors());
+app.use(cors({ origin: ORIGIN_ALLOW, credentials: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/product', productRouter);
 app.use('/order', orderRouter);
+app.use('/auth', authRouter);
 
 app.use((_req: Request, _res: Response, next: NextFunction) => {
   next(new NotFoundError('Маршрут не найден'));

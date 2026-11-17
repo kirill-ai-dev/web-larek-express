@@ -28,3 +28,30 @@ export const validateOrderBody = celebrate({
     items: Joi.array().items(Joi.string().hex().length(24).required()).min(1).required(),
   }).required(),
 }, { convert: false });
+
+/** Проверяет обязательные email и пароль и необязательное имя при регистрации. */
+export const validateRegisterBody = celebrate({
+  [Segments.BODY]: Joi.object({
+    name: Joi.string().min(2).max(30),
+    email: Joi.string().email({ tlds: { allow: false } }).required(),
+    password: Joi.string().min(6).required(),
+  }).required(),
+}, { convert: false });
+
+/** Не позволяет передать вместо email и пароля числа или условия MongoDB. */
+export const validateLoginBody = celebrate({
+  [Segments.BODY]: Joi.object({
+    email: Joi.string().email({ tlds: { allow: false } }).required(),
+    password: Joi.string().required(),
+  }).required(),
+}, { convert: false });
+
+/** Проверяет тип refresh-cookie перед контроллером. Отсутствие cookie даёт 401. */
+export const validateRefreshCookie = celebrate({
+  [Segments.COOKIES]: Joi.object({ refreshToken: Joi.string().allow('') }).unknown(true),
+}, { convert: false });
+
+/** Проверяет тип заголовка авторизации; наличие и подпись проверяет auth. */
+export const validateAuthorization = celebrate({
+  [Segments.HEADERS]: Joi.object({ authorization: Joi.string().allow('') }).unknown(true),
+}, { convert: false });
