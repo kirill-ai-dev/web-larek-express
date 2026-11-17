@@ -1,17 +1,44 @@
 import { celebrate, Joi, Segments } from 'celebrate';
+import { isImageFileName } from '../utils/files';
+
+/** Данные картинки: локальный путь без переходов к другим файлам и исходное имя. */
+const productImageSchema = Joi.object({
+  fileName: Joi.string().custom((value: string, helpers) => (
+    isImageFileName(value) ? value : helpers.error('any.invalid')
+  )).required(),
+  originalName: Joi.string().required(),
+});
+
+/** Преобразует цену из строки админки в число. Остальные поля проверяются строго. */
+const productPriceSchema = Joi.number()
+  .allow(null)
+  .prefs({ convert: true });
 
 /** Проверяет поля нового товара до контроллера. При нарушении схемы возвращается 400. */
 export const validateProductBody = celebrate({
   [Segments.BODY]: Joi.object({
     title: Joi.string().min(2).max(30).required(),
-    image: Joi.object({
-      fileName: Joi.string().required(),
-      originalName: Joi.string().required(),
-    }).required(),
+    image: productImageSchema.required(),
     category: Joi.string().required(),
     description: Joi.string().allow(''),
-    price: Joi.number().allow(null),
+    price: productPriceSchema,
   }).required(),
+}, { convert: false });
+
+/** Все поля обновления необязательны, но хотя бы одно должно быть передано. */
+export const validateProductUpdateBody = celebrate({
+  [Segments.BODY]: Joi.object({
+    title: Joi.string().min(2).max(30),
+    image: productImageSchema,
+    category: Joi.string(),
+    description: Joi.string().allow(''),
+    price: productPriceSchema,
+  }).min(1).required(),
+}, { convert: false });
+
+/** Проверяет ID товара из URL перед обновлением или удалением. */
+export const validateProductId = celebrate({
+  [Segments.PARAMS]: Joi.object({ productId: Joi.string().hex().length(24).required() }),
 }, { convert: false });
 
 /**

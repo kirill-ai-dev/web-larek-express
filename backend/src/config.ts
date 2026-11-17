@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'path';
 
 /** Порт сервера из .env. Если не указан, используется 3000. */
 export const PORT = Number(process.env.PORT ?? 3000);
@@ -12,3 +13,12 @@ export const {
   AUTH_REFRESH_TOKEN_EXPIRY = '7d',
   ORIGIN_ALLOW = 'http://localhost:5173',
 } = process.env;
+
+/** Папка статики рядом с исходным или собранным кодом сервера. */
+export const PUBLIC_DIRECTORY = path.resolve(__dirname, 'public');
+/** Постоянная и временная папки из .env. Временная папка не раздаётся клиенту. */
+export const UPLOAD_DIRECTORY = path.resolve(PUBLIC_DIRECTORY, process.env.UPLOAD_PATH || 'images');
+export const TEMP_DIRECTORY = path.resolve(__dirname, '..', process.env.UPLOAD_PATH_TEMP || 'temp');
+export const IMAGE_URL_PREFIX = '/images';
+/** Принимаем одно изображение размером не больше 5 МБ. */
+export const MAX_FILE_SIZE = 5 * 1024 * 1024;

@@ -6,6 +6,7 @@ import {
   AUTH_REFRESH_TOKEN_EXPIRY, AUTH_REFRESH_TOKEN_SECRET,
 } from '../config';
 import { UnauthorizedError } from '../errors';
+import { TokenPayload } from '../types/auth';
 
 /** Проверяет, что секрет подписи задан в .env, не подставляя публичный ключ. */
 const getSecret = (secret: string | undefined): string => {
@@ -51,7 +52,7 @@ export const createTokens = (_id: string) => ({
 });
 
 /** Проверяет подпись и срок токена. Просроченный или повреждённый токен даёт 401. */
-const verifyToken = (token: string, secret: string | undefined): string => {
+const verifyToken = (token: string, secret: string | undefined): TokenPayload => {
   const key = getSecret(secret);
   try {
     const payload = jwt.verify(token, key, { algorithms: ['HS256'] });
@@ -59,15 +60,17 @@ const verifyToken = (token: string, secret: string | undefined): string => {
       || typeof payload.exp !== 'number') {
       throw new UnauthorizedError();
     }
-    return payload._id;
+    return { ...payload, _id: payload._id, exp: payload.exp };
   } catch (_error) {
     throw new UnauthorizedError('Невалидный или просроченный токен');
   }
 };
 
-/** Читает ID из access-токена для защищённых маршрутов. */
+/** Возвращает проверенный payload access-токена для защищённых маршрутов. */
 export const verifyAccessToken = (token: string) => verifyToken(token, AUTH_ACCESS_TOKEN_SECRET);
 /** Читает ID из refresh-токена для обновления сессии и выхода. */
-export const verifyRefreshToken = (token: string) => verifyToken(token, AUTH_REFRESH_TOKEN_SECRET);
+export const verifyRefreshToken = (token: string) => (
+  verifyToken(token, AUTH_REFRESH_TOKEN_SECRET)._id
+);
 /** Срок cookie совпадает со сроком жизни refresh-токена. */
 export const getRefreshCookieMaxAge = () => getLifetime(AUTH_REFRESH_TOKEN_EXPIRY);

@@ -1,6 +1,12 @@
-import { Joi } from 'celebrate';
 import mongoose from 'mongoose';
 import { hashPassword } from '../utils/password';
+
+/** Проверяет почту: части адреса непустые, точки и дефисы стоят внутри своих частей. */
+const emailPattern = new RegExp(
+  "^[a-z\\d!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z\\d!#$%&'*+/=?^_`{|}~-]+)*"
+    + '@[a-z\\d](?:[a-z\\d-]*[a-z\\d])?(?:\\.[a-z\\d](?:[a-z\\d-]*[a-z\\d])?)+$',
+  'i',
+);
 
 /** Данные пользователя и его активные сессии. Пароль хранится в виде хеша. */
 export interface IUser {
@@ -27,8 +33,7 @@ const userSchema = new mongoose.Schema<IUser>({
     required: [true, 'Поле "email" должно быть заполнено'],
     unique: true,
     validate: {
-      validator: (email: string) => !Joi.string().email({ tlds: { allow: false } })
-        .validate(email).error,
+      validator: (email: string) => emailPattern.test(email),
       message: 'Некорректный email',
     },
   },

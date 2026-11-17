@@ -4,6 +4,8 @@ const { spawn } = require('node:child_process');
 const { randomBytes, scryptSync } = require('node:crypto');
 const net = require('node:net');
 const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 
@@ -15,6 +17,7 @@ const credentials = { email: 'admin@ya.ru', password: '123456789' };
 let server;
 let baseUrl;
 let User;
+let fileSandbox;
 
 function checkPasswordHash(password, stored) {
   const [algorithm, salt, hash] = stored.split(':');
@@ -59,6 +62,8 @@ function assertSession(result, name = 'Ё-мое') {
 }
 
 before(async () => {
+  process.env.AUTH_ACCESS_TOKEN_SECRET = accessSecret;
+  fileSandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'weblarek-auth-files-'));
   const port = await new Promise((resolve) => {
     const socket = net.createServer();
     socket.listen(0, '127.0.0.1', () => {
@@ -74,6 +79,8 @@ before(async () => {
       ...process.env, PORT: String(port), DB_ADDRESS: dbAddress,
       AUTH_ACCESS_TOKEN_SECRET: accessSecret, AUTH_REFRESH_TOKEN_SECRET: refreshSecret,
       AUTH_ACCESS_TOKEN_EXPIRY: '10m', AUTH_REFRESH_TOKEN_EXPIRY: '7d',
+      UPLOAD_PATH: path.join(fileSandbox, 'images'),
+      UPLOAD_PATH_TEMP: path.join(fileSandbox, 'temp'),
     },
     stdio: 'pipe',
   });
@@ -99,6 +106,7 @@ after(async () => {
     await mongoose.connection.dropDatabase();
     await mongoose.disconnect();
   }
+  if (fileSandbox) fs.rmSync(fileSandbox, { recursive: true, force: true });
 });
 
 test('регистрация: стандартное имя, токены, cookie и скрытые поля модели', async () => {
@@ -155,6 +163,28 @@ test('схема проверяет email, пароль и имя без HTTP', 
   const user = await User.create(credentials);
   assert.equal(user.name, 'Ё-мое');
   checkPasswordHash(credentials.password, user.password);
+});
+
+test('модель проверяет email регулярным выражением без HTTP', async () => {
+  for (const email of ['admin@', '@ya.ru', 'admin@-ya.ru', 'admin@ya..ru', 'a b@ya.ru',
+    '.admin@ya.ru', 'admin.@ya.ru', 'a..b@ya.ru']) {
+    await assert.rejects(User.create({ ...credentials, email }), { name: 'ValidationError' });
+  }
+  const user = await User.create({ ...credentials, email: 'admin+shop@mail.example.ru' });
+  assert.equal(user.email, 'admin+shop@mail.example.ru');
+});
+
+test('auth передаёт проверенный payload в req.user', async () => {
+  const auth = require('../dist/middlewares/auth').default;
+  const payload = { _id: new mongoose.Types.ObjectId().toString() };
+  const token = jwt.sign(payload, accessSecret, { expiresIn: '10m' });
+  const req = { headers: { authorization: `Bearer ${token}` } };
+  let error;
+  let calls = 0;
+  auth(req, { locals: {} }, (value) => { error = value; calls += 1; });
+  assert.equal(error, undefined);
+  assert.equal(calls, 1);
+  assert.deepEqual(req.user, jwt.verify(token, accessSecret));
 });
 
 test('вход: верный пароль выдаёт сессию', async () => {
@@ -226,12 +256,22 @@ test('обновление заменяет refresh-токен и запреща
 });
 
 test('обновление: нет cookie, неверный, просроченный и не сохранённый токены дают 401', async () => {
+  const session = await register();
+  const payload = jwt.verify(session.body.accessToken, accessSecret);
   for (const token of ['', 'broken', jwt.sign(
     { _id: new mongoose.Types.ObjectId().toString() }, refreshSecret, { expiresIn: -1 },
-  ), jwt.sign({ _id: new mongoose.Types.ObjectId().toString() }, refreshSecret, { expiresIn: '7d' })]) {
+  ), jwt.sign({ _id: payload._id }, refreshSecret, { expiresIn: '7d' })]) {
     const result = await request('/auth/token', { headers: { Cookie: `refreshToken=${token}` } });
     assert.equal(result.status, 401);
   }
+});
+
+test('обновление: действительный refresh-токен удалённого пользователя даёт 404', async () => {
+  const session = await register();
+  await User.deleteMany({});
+  const result = await request('/auth/token', { headers: { Cookie: cookie(session) } });
+  assert.equal(result.status, 404);
+  assert.deepEqual(result.body, { message: 'Пользователь не найден' });
 });
 
 test('токены разных типов нельзя подменять друг другом', async () => {

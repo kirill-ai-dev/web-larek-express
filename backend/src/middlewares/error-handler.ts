@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { MulterError } from 'multer';
 import { AppError, BadRequestError, InternalServerError } from '../errors';
 
 /**
@@ -14,6 +15,10 @@ const errorHandler = (error: unknown, _req: Request, res: Response, next: NextFu
   let appError = error instanceof AppError ? error : new InternalServerError();
   if (error instanceof SyntaxError && 'status' in error && error.status === 400) {
     appError = new BadRequestError('Некорректный JSON');
+  }
+  if (error instanceof MulterError) {
+    appError = new BadRequestError(error.code === 'LIMIT_FILE_SIZE'
+      ? 'Размер изображения не должен превышать 5 МБ' : 'Ожидается один файл в поле file');
   }
 
   res.status(appError.statusCode).send({ message: appError.message });

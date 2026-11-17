@@ -1,11 +1,25 @@
 import { Router } from 'express';
-import { createProduct, getProducts } from '../controllers/products';
-import { validateProductBody } from '../middlewares/validation';
+import {
+  createProduct, deleteProduct, getProducts, updateProduct,
+} from '../controllers/products';
+import {
+  validateAuthorization, validateProductBody, validateProductId, validateProductUpdateBody,
+} from '../middlewares/validation';
+import auth from '../middlewares/auth';
 
-/** Маршруты /product: GET — список товаров, POST — создание после проверки данных. */
+/** Каталог открыт всем. Изменение товаров требует access-токен до проверки данных. */
 const router = Router();
 
 router.get('/', getProducts);
-router.post('/', validateProductBody, createProduct);
+router.post('/', validateAuthorization, auth, validateProductBody, createProduct);
+router.patch(
+  '/:productId',
+  validateAuthorization,
+  auth,
+  validateProductId,
+  validateProductUpdateBody,
+  updateProduct,
+);
+router.delete('/:productId', validateAuthorization, auth, validateProductId, deleteProduct);
 
 export default router;

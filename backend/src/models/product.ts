@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { isImageFileName, removeImage } from '../utils/files';
 
 /** Поля товара. Цена null означает, что товар не продаётся. */
 export interface IProduct {
@@ -14,7 +15,11 @@ export interface IProduct {
 
 /** Путь к картинке на сервере и исходное имя файла. Оба поля обязательны. */
 const imageSchema = new mongoose.Schema({
-  fileName: { type: String, required: [true, 'Поле "fileName" должно быть заполнено'] },
+  fileName: {
+    type: String,
+    required: [true, 'Поле "fileName" должно быть заполнено'],
+    validate: { validator: isImageFileName, message: 'Некорректный путь к изображению' },
+  },
   originalName: { type: String, required: [true, 'Поле "originalName" должно быть заполнено'] },
 }, { _id: false });
 
@@ -32,6 +37,13 @@ const productSchema = new mongoose.Schema<IProduct>({
   description: String,
   price: { type: Number, default: null },
 }, { versionKey: false });
+
+/** Удаляет картинку после findByIdAndDelete/findOneAndDelete, если она больше не используется. */
+productSchema.post('findOneAndDelete', async function cleanupImage(product) {
+  if (product && !(await this.model.exists({ 'image.fileName': product.image.fileName }))) {
+    await removeImage(product.image.fileName);
+  }
+});
 
 /** Модель для чтения и сохранения товаров в коллекции products. */
 export default mongoose.model<IProduct>('product', productSchema);

@@ -75,7 +75,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const tokens = createTokens(user._id.toString());
     const updated = await User.findByIdAndUpdate(user._id, {
       $push: { tokens: { token: tokens.refreshToken } },
-    });
+    }, { runValidators: true, new: true });
     if (!updated) {
       throw new NotFoundError('Пользователь не найден');
     }
@@ -86,9 +86,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 };
 
 /** Возвращает имя и email пользователя из проверенного access-токена. */
-export const getCurrentUser = async (_req: Request, res: Response, next: NextFunction) => {
+export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = await User.findById(res.locals.userId);
+    const user = await User.findById(req.user?._id);
     if (!user) {
       throw new NotFoundError('Пользователь не найден');
     }
@@ -98,7 +98,7 @@ export const getCurrentUser = async (_req: Request, res: Response, next: NextFun
   }
 };
 
-/** Заменяет только предъявленный refresh-токен. Старый больше не открывает сессию. */
+/** Заменяет refresh-токен. Если пользователь удалён, возвращает 404, если сессия закрыта — 401. */
 export const refreshAccessToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId, token } = readRefreshToken(req);
@@ -107,6 +107,9 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       $set: { 'tokens.$.token': tokens.refreshToken },
     }, { new: true, runValidators: true });
     if (!user) {
+      if (!(await User.exists({ _id: userId }))) {
+        throw new NotFoundError('Пользователь не найден');
+      }
       throw new UnauthorizedError('Сессия не найдена или уже завершена');
     }
     sendSession(res, user, tokens);
@@ -125,7 +128,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     }
     const result = await User.updateOne({ _id: userId, 'tokens.token': token }, {
       $pull: { tokens: { token } },
-    });
+    }, { runValidators: true });
     if (result.modifiedCount === 0) {
       throw new UnauthorizedError('Сессия уже завершена');
     }
