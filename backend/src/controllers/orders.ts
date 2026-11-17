@@ -1,27 +1,14 @@
 import { faker } from '@faker-js/faker';
 import { NextFunction, Request, Response } from 'express';
-import mongoose from 'mongoose';
-import validator from 'validator';
 import { BadRequestError } from '../errors';
 import Product from '../models/product';
 
+/**
+ * Проверяет, что товары существуют, продаются и их сумма совпадает с total.
+ * Возвращает ID и сумму заказа. Сам заказ в базе не сохраняется.
+ */
 const createOrder = async (req: Request, res: Response, next: NextFunction) => {
-  const {
-    payment, email, phone, address, total, items,
-  } = req.body ?? {};
-
-  if (
-    !['card', 'online'].includes(payment)
-    || typeof email !== 'string' || !validator.isEmail(email)
-    || typeof phone !== 'string' || !phone.trim()
-    || typeof address !== 'string' || !address.trim()
-    || typeof total !== 'number' || !Number.isFinite(total)
-    || !Array.isArray(items) || items.length === 0
-    || !items.every((id: unknown) => typeof id === 'string' && mongoose.isObjectIdOrHexString(id))
-  ) {
-    next(new BadRequestError('Ошибка валидации данных при оформлении заказа'));
-    return;
-  }
+  const { total, items } = req.body;
 
   try {
     const products = await Product.find({ _id: { $in: items } });

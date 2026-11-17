@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { BadRequestError, ConflictError } from '../errors';
 import Product from '../models/product';
 
+/** Возвращает все товары и их количество в формате { items, total }. */
 export const getProducts = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const items = await Product.find({});
@@ -12,6 +13,10 @@ export const getProducts = async (_req: Request, res: Response, next: NextFuncti
   }
 };
 
+/**
+ * Сохраняет новый товар и возвращает его клиенту.
+ * Ошибки данных и повтор названия передаёт общему обработчику через next.
+ */
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {

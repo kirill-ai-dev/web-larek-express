@@ -1,3 +1,4 @@
+/** Общая основа ошибок приложения: хранит сообщение и HTTP-код ответа. */
 export default class AppError extends Error {
   readonly statusCode: number;
 
