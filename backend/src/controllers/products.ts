@@ -16,6 +16,9 @@ export const getProducts = async (_req: Request, res: Response, next: NextFuncti
 /**
  * Сохраняет новый товар и возвращает его клиенту.
  * Ошибки данных и повтор названия передаёт общему обработчику через next.
+ *
+ * Исправление по результатам автотестов: при создании товара нужен статус 201.
+ * Он означает, что сервер успешно создал новый ресурс.
  */
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -25,7 +28,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const product = await Product.create({
       title, image, category, description, price,
     });
-    res.send(product);
+    res.status(201).send(product);
   } catch (error) {
     if (error instanceof mongoose.Error.ValidationError) {
       next(new BadRequestError('Ошибка валидации данных при создании товара'));
