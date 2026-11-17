@@ -35,6 +35,54 @@ jobs:
     - name: Get testing lib
       run: set -eu && git clone --depth 1 $REP_TESTS $DIR_TESTS
     - name: Start project
+      if: hashFiles('backend/src/routes/upload.ts') == ''
       run: bash $DIR_TESTS/bin/start_project.sh
+    - name: Start extended project
+      if: hashFiles('backend/src/routes/upload.ts') != ''
+      run: |
+        node .github/scripts/prepare-ci-env.cjs
+        docker compose up -d --build
     - name: Run tests
+      if: hashFiles('backend/src/routes/upload.ts') == ''
       run: bash $DIR_TESTS/bin/endpoints.sh
+    - name: Run original assertions with authorization and uploaded image
+      if: hashFiles('backend/src/routes/upload.ts') != ''
+      run: |
+        node .github/scripts/prepare-api-collection.cjs "$DIR_TESTS/collections/sprint-13.json" /tmp/weblarek-collection.json
+        npx --yes --package=newman@5.3.2 newman run /tmp/weblarek-collection.json --color on
+    - name: Show container logs on failure
+      if: failure()
+      run: docker compose logs --tail=80
+    - name: Stop containers
+      if: always()
+      run: docker compose down -v
+  test_extended_api:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+    - name: Set up GitHub Actions
+      uses: actions/checkout@v4
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: npm
+        cache-dependency-path: backend/package-lock.json
+    - name: Install dependencies
+      run: npm ci
+    - name: Check lint
+      run: npm run lint
+    - name: Test authentication, uploads and product changes
+      run: npm test
